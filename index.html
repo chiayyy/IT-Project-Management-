@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PulseVision - AI-Powered Driver Fatigue Detection</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- MediaPipe Face Mesh - Using specific versions for stability -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6.1675466862/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466862/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1675466862/face_mesh.js" crossorigin="anonymous"></script>
+    <!-- MediaPipe Face Mesh - Using working stable versions -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- Toast Notifications Container -->
@@ -20,6 +20,15 @@
         <div class="loading-content">
             <div class="loading-spinner"></div>
             <h3>Initializing Camera...</h3>
+        </div>
+    </div>
+
+    <!-- Initial Library Loading -->
+    <div id="libraryLoading" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h3>Loading AI Libraries...</h3>
+            <p style="color: #9ca3af; margin-top: 10px; font-size: 0.9em;">This may take a few seconds</p>
         </div>
     </div>
 

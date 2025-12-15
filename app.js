@@ -141,7 +141,7 @@ class FatigueDetector {
             this.showLoading('Loading AI model...');
             this.faceMesh = new FaceMesh({
                 locateFile: (file) => {
-                    const path = `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1675466862/${file}`;
+                    const path = `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`;
                     console.log('Loading file:', path);
                     return path;
                 }
@@ -833,8 +833,58 @@ class FatigueDetector {
     }
 }
 
-// Initialize the application when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    const detector = new FatigueDetector();
-    console.log('PulseVision initialized successfully');
+// Wait for MediaPipe libraries to load
+function waitForMediaPipe() {
+    return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+            if (typeof FaceMesh !== 'undefined' &&
+                typeof Camera !== 'undefined' &&
+                typeof drawConnectors !== 'undefined') {
+                clearInterval(checkInterval);
+                console.log('✓ All MediaPipe libraries loaded successfully');
+                resolve();
+            } else {
+                console.log('Waiting for MediaPipe libraries...');
+            }
+        }, 100);
+    });
+}
+
+// Initialize the application when DOM and libraries are ready
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM loaded, waiting for MediaPipe libraries...');
+
+    // Wait for libraries to load (max 10 seconds)
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('MediaPipe libraries failed to load')), 10000)
+    );
+
+    try {
+        await Promise.race([waitForMediaPipe(), timeoutPromise]);
+
+        // Hide library loading overlay
+        const libraryLoading = document.getElementById('libraryLoading');
+        if (libraryLoading) {
+            libraryLoading.classList.add('hidden');
+        }
+
+        const detector = new FatigueDetector();
+        console.log('✓ PulseVision initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize:', error);
+
+        // Update loading overlay with error
+        const libraryLoading = document.getElementById('libraryLoading');
+        if (libraryLoading) {
+            libraryLoading.innerHTML = `
+                <div class="loading-content">
+                    <h3 style="color: #ef4444;">❌ Failed to Load AI Libraries</h3>
+                    <p style="color: #9ca3af; margin-top: 10px;">Please check your internet connection</p>
+                    <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 24px; background: #6366f1; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em;">
+                        🔄 Refresh Page
+                    </button>
+                </div>
+            `;
+        }
+    }
 });
