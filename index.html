@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseVision - AI-Powered Driver Fatigue Detection</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- MediaPipe Face Mesh -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h3>Initializing Camera...</h3>
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status">
+        <div class="connection-indicator"></div>
+        <span>System Ready</span>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <h1>🚗 PulseVision</h1>
+                <p class="tagline">AI-Powered Driver Fatigue Detection</p>
+            </div>
+            <button id="helpBtn" class="help-btn">❓ Help</button>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Video Container -->
+            <div class="video-section">
+                <div class="video-wrapper">
+                    <video id="videoElement" autoplay playsinline></video>
+                    <canvas id="canvasElement"></canvas>
+                    <div id="alertOverlay" class="alert-overlay hidden">
+                        <div class="alert-content">
+                            <span class="alert-icon">⚠️</span>
+                            <h2>FATIGUE DETECTED!</h2>
+                            <p>Please take a break</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Indicators -->
+                <div class="status-panel">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span id="systemStatus" class="status-value">Initializing...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Eye Closure:</span>
+                        <span id="earStatus" class="status-value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Yawn Detection:</span>
+                        <span id="marStatus" class="status-value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Alerts:</span>
+                        <span id="alertCount" class="status-value alert-count">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <button id="startBtn" class="btn btn-primary">Start Monitoring</button>
+                <button id="stopBtn" class="btn btn-secondary" disabled>Stop Monitoring</button>
+                <button id="resetBtn" class="btn btn-tertiary">Reset Stats</button>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="settings-panel">
+                <h3>Detection Settings</h3>
+                <div class="setting-group">
+                    <label for="earThreshold">Eye Closure Threshold (EAR):</label>
+                    <input type="range" id="earThreshold" min="0.15" max="0.30" step="0.01" value="0.20">
+                    <span id="earThresholdValue">0.20</span>
+                </div>
+                <div class="setting-group">
+                    <label for="marThreshold">Yawn Threshold (MAR):</label>
+                    <input type="range" id="marThreshold" min="0.5" max="0.8" step="0.05" value="0.65">
+                    <span id="marThresholdValue">0.65</span>
+                </div>
+                <div class="setting-group">
+                    <label for="closureDuration">Eye Closure Duration (seconds):</label>
+                    <input type="range" id="closureDuration" min="1" max="5" step="0.5" value="2">
+                    <span id="closureDurationValue">2.0</span>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="soundAlerts" checked>
+                        Enable Sound Alerts
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="continuousAlerts">
+                        Continuous Alert Sound (Repeats while fatigue detected)
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="visualAlerts" checked>
+                        Enable Visual Alerts
+                    </label>
+                </div>
+            </div>
+
+            <!-- Statistics Dashboard -->
+            <div class="stats-dashboard">
+                <h3>Session Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span id="sessionDuration" class="stat-value">00:00</span>
+                        <span class="stat-label">Session Time</span>
+                    </div>
+                    <div class="stat-card">
+                        <span id="totalBlinks" class="stat-value">0</span>
+                        <span class="stat-label">Eye Closures</span>
+                    </div>
+                    <div class="stat-card">
+                        <span id="totalYawns" class="stat-value">0</span>
+                        <span class="stat-label">Yawns</span>
+                    </div>
+                    <div class="stat-card">
+                        <span id="avgEAR" class="stat-value">0.00</span>
+                        <span class="stat-label">Avg EAR</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Help Modal -->
+        <div id="helpModal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>How to Use PulseVision</h2>
+
+                <div class="help-section">
+                    <h3>Getting Started</h3>
+                    <ol>
+                        <li>Click "Start Monitoring" to begin</li>
+                        <li>Allow camera access when prompted</li>
+                        <li>Position yourself so your face is clearly visible</li>
+                        <li>The system will monitor your fatigue in real-time</li>
+                    </ol>
+                </div>
+
+                <div class="help-section">
+                    <h3>What We Detect</h3>
+                    <ul>
+                        <li><strong>Eye Closure (EAR):</strong> Prolonged eye closure or frequent blinking</li>
+                        <li><strong>Yawning (MAR):</strong> Mouth opening indicating fatigue</li>
+                        <li><strong>Head Pose:</strong> Rapid head movements or nodding</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>Alerts</h3>
+                    <p>When fatigue is detected, you'll receive:</p>
+                    <ul>
+                        <li>Visual warning overlay on screen</li>
+                        <li>Audio alert sound (if enabled)</li>
+                        <li>Recommendation to take a break</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>Adjusting Settings</h3>
+                    <p>Fine-tune detection sensitivity using the sliders:</p>
+                    <ul>
+                        <li><strong>EAR Threshold:</strong> Lower values = more sensitive to eye closure</li>
+                        <li><strong>MAR Threshold:</strong> Higher values = less sensitive to yawning</li>
+                        <li><strong>Closure Duration:</strong> Time eyes must be closed to trigger alert</li>
+                    </ul>
+                </div>
+
+                <div class="help-section">
+                    <h3>Privacy Notice</h3>
+                    <p>🔒 All processing happens locally in your browser. No video data is sent to any server. Your privacy is completely protected.</p>
+                </div>
+
+                <div class="help-section">
+                    <h3>Tips for Best Results</h3>
+                    <ul>
+                        <li>Ensure good lighting on your face</li>
+                        <li>Keep your face centered in the frame</li>
+                        <li>Avoid wearing sunglasses or items that obscure your face</li>
+                        <li>Take regular breaks every 2 hours</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
