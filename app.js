@@ -41,6 +41,8 @@ class FatigueDetector {
         this.camera = null;
         this.alerts = 0;
         this.faceDetected = false;
+        this.objectDetector = null;
+        this.detectedObjects = [];
 
         // Fatigue Metrics
         this.eyeClosureStartTime = null;
@@ -137,8 +139,14 @@ class FatigueDetector {
             }
             console.log('MediaPipe FaceMesh library loaded successfully');
 
+            // Load TensorFlow.js Object Detection Model
+            this.showLoading('Loading object detection model...');
+            console.log('Loading COCO-SSD object detection model...');
+            this.objectDetector = await cocoSsd.load();
+            console.log('✓ Object detection model loaded successfully');
+
             // Initialize MediaPipe Face Mesh
-            this.showLoading('Loading AI model...');
+            this.showLoading('Loading face detection model...');
             this.faceMesh = new FaceMesh({
                 locateFile: (file) => {
                     const path = `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`;
@@ -234,7 +242,7 @@ class FatigueDetector {
         this.updateConnectionStatus('System Ready', true);
     }
 
-    onResults(results) {
+    async onResults(results) {
         if (!this.isMonitoring) return;
 
         // Set canvas dimensions
@@ -243,6 +251,12 @@ class FatigueDetector {
 
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Run object detection (every 500ms to save performance)
+        if (!this.lastObjectDetectionTime || Date.now() - this.lastObjectDetectionTime > 500) {
+            await this.detectObjects();
+            this.lastObjectDetectionTime = Date.now();
+        }
 
         if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
             const landmarks = results.multiFaceLandmarks[0];
@@ -333,6 +347,57 @@ class FatigueDetector {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
+    // Detect objects using TensorFlow COCO-SSD
+    async detectObjects() {
+        if (!this.objectDetector || !this.video) return;
+
+        try {
+            // Detect objects in video frame
+            const predictions = await this.objectDetector.detect(this.video);
+            this.detectedObjects = predictions;
+
+            // Dangerous objects that shouldn't be in driver's hands
+            const dangerousObjects = ['cell phone', 'book', 'cup', 'bottle', 'wine glass', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake'];
+
+            // Check for dangerous objects
+            const foundDangerousObjects = predictions.filter(pred =>
+                dangerousObjects.includes(pred.class.toLowerCase())
+            );
+
+            // Draw detected objects on canvas
+            this.drawDetectedObjects(predictions, foundDangerousObjects);
+
+            return foundDangerousObjects;
+        } catch (error) {
+            console.error('Object detection error:', error);
+            return [];
+        }
+    }
+
+    // Draw bounding boxes for detected objects
+    drawDetectedObjects(allObjects, dangerousObjects) {
+        allObjects.forEach(prediction => {
+            const [x, y, width, height] = prediction.bbox;
+            const isDangerous = dangerousObjects.some(obj => obj.class === prediction.class);
+
+            // Draw bounding box
+            this.ctx.strokeStyle = isDangerous ? '#ef4444' : '#10b981'; // Red for dangerous, green for safe
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(x, y, width, height);
+
+            // Draw label background
+            const label = `${prediction.class} ${Math.round(prediction.score * 100)}%`;
+            this.ctx.font = '16px Arial';
+            const textWidth = this.ctx.measureText(label).width;
+            this.ctx.fillStyle = isDangerous ? '#ef4444' : '#10b981';
+            this.ctx.fillRect(x, y - 25, textWidth + 10, 25);
+
+            // Draw label text
+            this.ctx.fillStyle = 'white';
+            this.ctx.fillText(label, x + 5, y - 7);
+        });
+    }
+
     // Calculate head pose angles (pitch, yaw, roll)
     calculateHeadPose(landmarks) {
         const noseTip = landmarks[this.NOSE_TIP];
@@ -353,23 +418,23 @@ class FatigueDetector {
         return { pitch, yaw, roll };
     }
 
-    // Detect phone usage (looking down)
-    detectPhoneUsage(pitch) {
-        // If head is tilted down significantly (looking at phone/lap)
-        const PHONE_PITCH_THRESHOLD = 25; // degrees down (increased from 15 to reduce false positives)
+    // Detect phone/object usage
+    detectPhoneUsage(pitch, detectedObjects) {
+        // Check if dangerous objects are detected
+        const dangerousObjects = ['cell phone', 'book', 'cup', 'bottle', 'wine glass', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake'];
 
-        if (pitch > PHONE_PITCH_THRESHOLD) {
-            if (this.lookingDownStartTime === null) {
-                this.lookingDownStartTime = Date.now();
-            } else {
-                const duration = (Date.now() - this.lookingDownStartTime) / 1000;
-                if (duration >= 3.0) { // Looking down for 3+ seconds (increased from 2)
-                    return true;
-                }
-            }
-        } else {
-            this.lookingDownStartTime = null;
+        const foundDangerousObjects = detectedObjects.filter(obj =>
+            dangerousObjects.includes(obj.class.toLowerCase())
+        );
+
+        // If dangerous objects detected, trigger immediate alert
+        if (foundDangerousObjects.length > 0) {
+            console.log('⚠️ Dangerous object detected:', foundDangerousObjects.map(o => o.class).join(', '));
+            this.detectedObjectType = foundDangerousObjects[0].class; // Store the object type
+            return true;
         }
+
+        this.detectedObjectType = null;
         return false;
     }
 
@@ -433,7 +498,7 @@ class FatigueDetector {
         let fatigueReason = '';
 
         // Check for additional safety issues (phone, nodding, looking away)
-        const isUsingPhone = this.detectPhoneUsage(headPose.pitch);
+        const isUsingPhone = this.detectPhoneUsage(headPose.pitch, this.detectedObjects);
         const isNodding = this.detectHeadNodding(headPose.pitch);
         const isLookingAway = this.detectLookingAway(headPose.yaw);
 
@@ -487,12 +552,13 @@ class FatigueDetector {
             this.marStatus.classList.remove('warning', 'danger');
         }
 
-        // Check for phone usage (looking down)
+        // Check for phone/object usage
         if (isUsingPhone) {
             fatigueDetected = true;
-            fatigueReason = '📱 PHONE DETECTED - Keep eyes on road!';
+            const objectName = this.detectedObjectType || 'Object';
+            fatigueReason = `⚠️ ${objectName.toUpperCase()} DETECTED - Put it down!`;
             this.distractionCount++;
-            this.headPoseStatus.textContent = '📱 Phone';
+            this.headPoseStatus.textContent = `⚠️ ${objectName}`;
             this.headPoseStatus.classList.remove('normal', 'warning');
             this.headPoseStatus.classList.add('danger');
         }
@@ -839,18 +905,20 @@ class FatigueDetector {
     }
 }
 
-// Wait for MediaPipe libraries to load
+// Wait for all AI libraries to load
 function waitForMediaPipe() {
     return new Promise((resolve) => {
         const checkInterval = setInterval(() => {
             if (typeof FaceMesh !== 'undefined' &&
                 typeof Camera !== 'undefined' &&
-                typeof drawConnectors !== 'undefined') {
+                typeof drawConnectors !== 'undefined' &&
+                typeof tf !== 'undefined' &&
+                typeof cocoSsd !== 'undefined') {
                 clearInterval(checkInterval);
-                console.log('✓ All MediaPipe libraries loaded successfully');
+                console.log('✓ All AI libraries loaded successfully (MediaPipe + TensorFlow)');
                 resolve();
             } else {
-                console.log('Waiting for MediaPipe libraries...');
+                console.log('Waiting for AI libraries...');
             }
         }, 100);
     });

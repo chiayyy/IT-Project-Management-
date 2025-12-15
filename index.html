@@ -10,6 +10,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js" crossorigin="anonymous"></script>
+
+    <!-- TensorFlow.js for Object Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
 </head>
 <body>
     <!-- Toast Notifications Container -->
@@ -183,9 +187,10 @@
                     <ul>
                         <li><strong>😴 Eye Closure (EAR):</strong> Prolonged eye closure or frequent blinking</li>
                         <li><strong>🥱 Yawning (MAR):</strong> Mouth opening indicating fatigue</li>
-                        <li><strong>📱 Phone Usage:</strong> Looking down at phone/lap for 2+ seconds</li>
+                        <li><strong>📱 Object Detection (AI):</strong> Detects phones, books, cups, bottles, food items using real-time object detection</li>
+                        <li><strong>⚠️ Dangerous Objects:</strong> Cell phone, book, cup, bottle, food (instant alert)</li>
                         <li><strong>😴 Head Nodding:</strong> Repetitive head movements indicating drowsiness</li>
-                        <li><strong>👀 Looking Away:</strong> Eyes off the road for 1.5+ seconds</li>
+                        <li><strong>👀 Looking Away:</strong> Eyes off the road for 2+ seconds</li>
                         <li><strong>🎯 Distraction Detection:</strong> Any head pose indicating inattention</li>
                     </ul>
                 </div>
