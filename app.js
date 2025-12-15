@@ -263,6 +263,12 @@ class FatigueDetector {
             // Calculate head pose for additional safety features
             const headPose = this.calculateHeadPose(landmarks);
 
+            // Debug: Log head pose values every 2 seconds
+            if (!this.lastLogTime || Date.now() - this.lastLogTime > 2000) {
+                console.log(`Head Pose - Pitch: ${headPose.pitch.toFixed(1)}°, Yaw: ${headPose.yaw.toFixed(1)}, Roll: ${headPose.roll.toFixed(1)}°`);
+                this.lastLogTime = Date.now();
+            }
+
             // Update UI
             this.earStatus.textContent = ear.toFixed(3);
             this.marStatus.textContent = mar.toFixed(3);
@@ -350,14 +356,14 @@ class FatigueDetector {
     // Detect phone usage (looking down)
     detectPhoneUsage(pitch) {
         // If head is tilted down significantly (looking at phone/lap)
-        const PHONE_PITCH_THRESHOLD = 15; // degrees down
+        const PHONE_PITCH_THRESHOLD = 25; // degrees down (increased from 15 to reduce false positives)
 
         if (pitch > PHONE_PITCH_THRESHOLD) {
             if (this.lookingDownStartTime === null) {
                 this.lookingDownStartTime = Date.now();
             } else {
                 const duration = (Date.now() - this.lookingDownStartTime) / 1000;
-                if (duration >= 2.0) { // Looking down for 2+ seconds
+                if (duration >= 3.0) { // Looking down for 3+ seconds (increased from 2)
                     return true;
                 }
             }
@@ -369,7 +375,7 @@ class FatigueDetector {
 
     // Detect head nodding (drowsiness indicator)
     detectHeadNodding(pitch) {
-        const HEAD_NOD_THRESHOLD = 8; // degrees of movement
+        const HEAD_NOD_THRESHOLD = 12; // degrees of movement (increased from 8 to reduce false positives)
 
         // Detect rapid pitch changes (head nodding)
         if (this.lastHeadPitch !== 0) {
@@ -379,13 +385,13 @@ class FatigueDetector {
                 const currentTime = Date.now();
                 this.headPoseHistory.push(currentTime);
 
-                // Remove old history (older than 5 seconds)
+                // Remove old history (older than 4 seconds)
                 this.headPoseHistory = this.headPoseHistory.filter(
-                    time => currentTime - time < 5000
+                    time => currentTime - time < 4000
                 );
 
-                // If 3+ nods in 5 seconds = drowsiness
-                if (this.headPoseHistory.length >= 3) {
+                // If 4+ nods in 4 seconds = drowsiness (increased threshold)
+                if (this.headPoseHistory.length >= 4) {
                     this.headNodCount++;
                     return true;
                 }
@@ -397,14 +403,14 @@ class FatigueDetector {
 
     // Detect looking away from road
     detectLookingAway(yaw) {
-        const LOOKING_AWAY_THRESHOLD = 25; // Significant turn
+        const LOOKING_AWAY_THRESHOLD = 35; // Significant turn (increased from 25 to reduce false positives)
 
         if (Math.abs(yaw) > LOOKING_AWAY_THRESHOLD) {
             if (this.lookingAwayStartTime === null) {
                 this.lookingAwayStartTime = Date.now();
             } else {
                 const duration = (Date.now() - this.lookingAwayStartTime) / 1000;
-                if (duration >= 1.5) { // Looking away for 1.5+ seconds
+                if (duration >= 2.0) { // Looking away for 2+ seconds (increased from 1.5)
                     return true;
                 }
             }
