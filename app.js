@@ -110,6 +110,11 @@ class FatigueDetector {
             this.showLoading('Initializing camera...');
             this.updateStatus('Initializing camera...', 'warning');
 
+            // Check if MediaPipe is loaded
+            if (typeof FaceMesh === 'undefined') {
+                throw new Error('MediaPipe Face Mesh library not loaded. Please refresh the page.');
+            }
+
             // Initialize MediaPipe Face Mesh
             this.faceMesh = new FaceMesh({
                 locateFile: (file) => {
@@ -125,6 +130,11 @@ class FatigueDetector {
             });
 
             this.faceMesh.onResults((results) => this.onResults(results));
+
+            // Check if Camera utility is loaded
+            if (typeof Camera === 'undefined') {
+                throw new Error('MediaPipe Camera utility not loaded. Please refresh the page.');
+            }
 
             // Initialize Camera
             this.camera = new Camera(this.video, {
