@@ -70,6 +70,14 @@
                         <span id="marStatus" class="status-value">--</span>
                     </div>
                     <div class="status-item">
+                        <span class="status-label">Head Pose:</span>
+                        <span id="headPoseStatus" class="status-value normal">Normal</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Distractions:</span>
+                        <span id="distractionCount" class="status-value alert-count">0</span>
+                    </div>
+                    <div class="status-item">
                         <span class="status-label">Alerts:</span>
                         <span id="alertCount" class="status-value alert-count">0</span>
                     </div>
@@ -164,9 +172,12 @@
                 <div class="help-section">
                     <h3>What We Detect</h3>
                     <ul>
-                        <li><strong>Eye Closure (EAR):</strong> Prolonged eye closure or frequent blinking</li>
-                        <li><strong>Yawning (MAR):</strong> Mouth opening indicating fatigue</li>
-                        <li><strong>Head Pose:</strong> Rapid head movements or nodding</li>
+                        <li><strong>😴 Eye Closure (EAR):</strong> Prolonged eye closure or frequent blinking</li>
+                        <li><strong>🥱 Yawning (MAR):</strong> Mouth opening indicating fatigue</li>
+                        <li><strong>📱 Phone Usage:</strong> Looking down at phone/lap for 2+ seconds</li>
+                        <li><strong>😴 Head Nodding:</strong> Repetitive head movements indicating drowsiness</li>
+                        <li><strong>👀 Looking Away:</strong> Eyes off the road for 1.5+ seconds</li>
+                        <li><strong>🎯 Distraction Detection:</strong> Any head pose indicating inattention</li>
                     </ul>
                 </div>
 

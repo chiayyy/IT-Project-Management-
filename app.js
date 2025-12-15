@@ -13,6 +13,8 @@ class FatigueDetector {
         this.systemStatus = document.getElementById('systemStatus');
         this.earStatus = document.getElementById('earStatus');
         this.marStatus = document.getElementById('marStatus');
+        this.headPoseStatus = document.getElementById('headPoseStatus');
+        this.distractionCountElement = document.getElementById('distractionCount');
         this.alertCount = document.getElementById('alertCount');
 
         // Control Buttons
@@ -71,6 +73,22 @@ class FatigueDetector {
         this.LEFT_EYE_INDICES = [33, 160, 158, 133, 153, 144];
         this.RIGHT_EYE_INDICES = [362, 385, 387, 263, 373, 380];
         this.MOUTH_INDICES = [61, 291, 0, 17, 146, 91];
+
+        // Head pose landmarks (for orientation detection)
+        this.NOSE_TIP = 1;
+        this.CHIN = 152;
+        this.LEFT_EYE_CORNER = 33;
+        this.RIGHT_EYE_CORNER = 263;
+        this.LEFT_MOUTH = 61;
+        this.RIGHT_MOUTH = 291;
+
+        // Additional detection states
+        this.headPoseHistory = [];
+        this.lookingAwayStartTime = null;
+        this.lookingDownStartTime = null;
+        this.headNodCount = 0;
+        this.lastHeadPitch = 0;
+        this.distractionCount = 0;
 
         this.init();
     }
@@ -242,12 +260,15 @@ class FatigueDetector {
             const ear = this.calculateEAR(landmarks);
             const mar = this.calculateMAR(landmarks);
 
+            // Calculate head pose for additional safety features
+            const headPose = this.calculateHeadPose(landmarks);
+
             // Update UI
             this.earStatus.textContent = ear.toFixed(3);
             this.marStatus.textContent = mar.toFixed(3);
 
-            // Detect fatigue
-            this.detectFatigue(ear, mar);
+            // Detect all safety issues (fatigue + distractions)
+            this.detectFatigue(ear, mar, headPose);
 
         } else {
             this.updateStatus('No face detected', 'warning');
@@ -306,7 +327,94 @@ class FatigueDetector {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    detectFatigue(ear, mar) {
+    // Calculate head pose angles (pitch, yaw, roll)
+    calculateHeadPose(landmarks) {
+        const noseTip = landmarks[this.NOSE_TIP];
+        const chin = landmarks[this.CHIN];
+        const leftEye = landmarks[this.LEFT_EYE_CORNER];
+        const rightEye = landmarks[this.RIGHT_EYE_CORNER];
+
+        // Calculate pitch (up/down - phone detection)
+        const pitch = Math.atan2(chin.y - noseTip.y, chin.z - noseTip.z) * (180 / Math.PI);
+
+        // Calculate yaw (left/right - looking away detection)
+        const midEyeX = (leftEye.x + rightEye.x) / 2;
+        const yaw = (noseTip.x - midEyeX) * 100; // Normalized
+
+        // Calculate roll (head tilt)
+        const roll = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
+
+        return { pitch, yaw, roll };
+    }
+
+    // Detect phone usage (looking down)
+    detectPhoneUsage(pitch) {
+        // If head is tilted down significantly (looking at phone/lap)
+        const PHONE_PITCH_THRESHOLD = 15; // degrees down
+
+        if (pitch > PHONE_PITCH_THRESHOLD) {
+            if (this.lookingDownStartTime === null) {
+                this.lookingDownStartTime = Date.now();
+            } else {
+                const duration = (Date.now() - this.lookingDownStartTime) / 1000;
+                if (duration >= 2.0) { // Looking down for 2+ seconds
+                    return true;
+                }
+            }
+        } else {
+            this.lookingDownStartTime = null;
+        }
+        return false;
+    }
+
+    // Detect head nodding (drowsiness indicator)
+    detectHeadNodding(pitch) {
+        const HEAD_NOD_THRESHOLD = 8; // degrees of movement
+
+        // Detect rapid pitch changes (head nodding)
+        if (this.lastHeadPitch !== 0) {
+            const pitchChange = Math.abs(pitch - this.lastHeadPitch);
+
+            if (pitchChange > HEAD_NOD_THRESHOLD) {
+                const currentTime = Date.now();
+                this.headPoseHistory.push(currentTime);
+
+                // Remove old history (older than 5 seconds)
+                this.headPoseHistory = this.headPoseHistory.filter(
+                    time => currentTime - time < 5000
+                );
+
+                // If 3+ nods in 5 seconds = drowsiness
+                if (this.headPoseHistory.length >= 3) {
+                    this.headNodCount++;
+                    return true;
+                }
+            }
+        }
+        this.lastHeadPitch = pitch;
+        return false;
+    }
+
+    // Detect looking away from road
+    detectLookingAway(yaw) {
+        const LOOKING_AWAY_THRESHOLD = 25; // Significant turn
+
+        if (Math.abs(yaw) > LOOKING_AWAY_THRESHOLD) {
+            if (this.lookingAwayStartTime === null) {
+                this.lookingAwayStartTime = Date.now();
+            } else {
+                const duration = (Date.now() - this.lookingAwayStartTime) / 1000;
+                if (duration >= 1.5) { // Looking away for 1.5+ seconds
+                    return true;
+                }
+            }
+        } else {
+            this.lookingAwayStartTime = null;
+        }
+        return false;
+    }
+
+    detectFatigue(ear, mar, headPose) {
         const earThresholdValue = parseFloat(this.earThreshold.value);
         const marThresholdValue = parseFloat(this.marThreshold.value);
         const closureDurationValue = parseFloat(this.closureDuration.value);
@@ -317,6 +425,11 @@ class FatigueDetector {
 
         let fatigueDetected = false;
         let fatigueReason = '';
+
+        // Check for additional safety issues (phone, nodding, looking away)
+        const isUsingPhone = this.detectPhoneUsage(headPose.pitch);
+        const isNodding = this.detectHeadNodding(headPose.pitch);
+        const isLookingAway = this.detectLookingAway(headPose.yaw);
 
         // Check for prolonged eye closure
         if (ear < earThresholdValue) {
@@ -367,6 +480,42 @@ class FatigueDetector {
             this.marStatus.classList.add('normal');
             this.marStatus.classList.remove('warning', 'danger');
         }
+
+        // Check for phone usage (looking down)
+        if (isUsingPhone) {
+            fatigueDetected = true;
+            fatigueReason = '📱 PHONE DETECTED - Keep eyes on road!';
+            this.distractionCount++;
+            this.headPoseStatus.textContent = '📱 Phone';
+            this.headPoseStatus.classList.remove('normal', 'warning');
+            this.headPoseStatus.classList.add('danger');
+        }
+        // Check for head nodding (drowsiness)
+        else if (isNodding) {
+            fatigueDetected = true;
+            fatigueReason = '😴 HEAD NODDING - Pull over to rest!';
+            this.headPoseStatus.textContent = '😴 Nodding';
+            this.headPoseStatus.classList.remove('normal', 'warning');
+            this.headPoseStatus.classList.add('danger');
+        }
+        // Check for looking away from road
+        else if (isLookingAway) {
+            fatigueDetected = true;
+            fatigueReason = '👀 LOOKING AWAY - Focus on the road!';
+            this.distractionCount++;
+            this.headPoseStatus.textContent = '👀 Distracted';
+            this.headPoseStatus.classList.remove('normal', 'warning');
+            this.headPoseStatus.classList.add('danger');
+        }
+        // Normal head pose
+        else {
+            this.headPoseStatus.textContent = 'Normal';
+            this.headPoseStatus.classList.remove('warning', 'danger');
+            this.headPoseStatus.classList.add('normal');
+        }
+
+        // Update distraction counter
+        this.distractionCountElement.textContent = this.distractionCount;
 
         // Update average EAR
         if (this.earHistory.length > 0) {
@@ -562,6 +711,15 @@ class FatigueDetector {
         this.consecutiveClosedFrames = 0;
         this.eyeClosureStartTime = null;
         this.earHistory = [];
+
+        // Reset new detection counters
+        this.distractionCount = 0;
+        this.distractionCountElement.textContent = '0';
+        this.headNodCount = 0;
+        this.headPoseHistory = [];
+        this.lookingAwayStartTime = null;
+        this.lookingDownStartTime = null;
+        this.lastHeadPitch = 0;
 
         // Reset session statistics
         this.totalBlinks.textContent = '0';
