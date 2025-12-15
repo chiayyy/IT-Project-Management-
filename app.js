@@ -38,6 +38,7 @@ class FatigueDetector {
         this.faceMesh = null;
         this.camera = null;
         this.alerts = 0;
+        this.faceDetected = false;
 
         // Fatigue Metrics
         this.eyeClosureStartTime = null;
@@ -107,20 +108,27 @@ class FatigueDetector {
 
     async startMonitoring() {
         try {
-            this.showLoading('Initializing camera...');
-            this.updateStatus('Initializing camera...', 'warning');
+            this.showLoading('Initializing AI...');
+            this.updateStatus('Initializing AI...', 'warning');
+            console.log('Starting monitoring...');
 
             // Check if MediaPipe is loaded
             if (typeof FaceMesh === 'undefined') {
+                console.error('FaceMesh not loaded!');
                 throw new Error('MediaPipe Face Mesh library not loaded. Please refresh the page.');
             }
+            console.log('MediaPipe FaceMesh library loaded successfully');
 
             // Initialize MediaPipe Face Mesh
+            this.showLoading('Loading AI model...');
             this.faceMesh = new FaceMesh({
                 locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+                    const path = `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1675466862/${file}`;
+                    console.log('Loading file:', path);
+                    return path;
                 }
             });
+            console.log('FaceMesh instance created');
 
             this.faceMesh.setOptions({
                 maxNumFaces: 1,
@@ -128,15 +136,20 @@ class FatigueDetector {
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
+            console.log('FaceMesh options configured');
 
             this.faceMesh.onResults((results) => this.onResults(results));
+            console.log('FaceMesh results callback registered');
 
             // Check if Camera utility is loaded
             if (typeof Camera === 'undefined') {
+                console.error('Camera utility not loaded!');
                 throw new Error('MediaPipe Camera utility not loaded. Please refresh the page.');
             }
+            console.log('Camera utility loaded successfully');
 
             // Initialize Camera
+            this.showLoading('Starting camera...');
             this.camera = new Camera(this.video, {
                 onFrame: async () => {
                     if (this.isMonitoring) {
@@ -148,9 +161,11 @@ class FatigueDetector {
             });
 
             await this.camera.start();
+            console.log('Camera started successfully');
 
             // Initialize Audio Context
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            console.log('Audio context initialized');
 
             this.isMonitoring = true;
             this.startBtn.disabled = true;
@@ -213,6 +228,12 @@ class FatigueDetector {
 
         if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
             const landmarks = results.multiFaceLandmarks[0];
+
+            // Log first detection
+            if (!this.faceDetected) {
+                console.log('✓ Face detected! AI is working!');
+                this.faceDetected = true;
+            }
 
             // Draw face mesh
             this.drawLandmarks(landmarks);
